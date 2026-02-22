@@ -11,9 +11,20 @@ let startTime = null;
 
 export function initRecord(el) {
     panel = el;
+    const hostname = location.hostname || '192.168.4.1';
+    const secureCtx = window.isSecureContext;
+    const httpsNotice = !secureCtx ? `
+        <div style="background:#2a1500;border:1px solid #ff8000;border-radius:6px;padding:10px;margin-bottom:4px;font-size:12px;line-height:1.6">
+            <b style="color:#ff8000">&#9888; Microphone requires HTTPS</b><br>
+            Browsers block mic access over plain HTTP. To enable in <b>Chrome</b>:<br>
+            1. Open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code><br>
+            2. Add <code>http://${hostname}</code> and relaunch Chrome<br>
+            <span style="color:var(--text-dim)">Firefox users: about:config → set <code>media.devices.insecure.enabled</code> to true</span>
+        </div>` : '';
     panel.innerHTML = `
         <div class="card">
             <h3>Microphone Recording</h3>
+            ${httpsNotice}
             <canvas id="rec-waveform" height="80"></canvas>
             <div class="form-row" style="margin-top:8px">
                 <button id="rec-btn">Record</button>
@@ -50,7 +61,15 @@ async function startRecording() {
     try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch (e) {
-        status.textContent = 'Microphone access denied';
+        if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+            status.textContent = !window.isSecureContext
+                ? 'Blocked: HTTP origin — see instructions above'
+                : 'Permission denied — allow mic in browser settings';
+        } else if (e.name === 'NotFoundError') {
+            status.textContent = 'No microphone found';
+        } else {
+            status.textContent = `Mic error: ${e.message}`;
+        }
         return;
     }
 

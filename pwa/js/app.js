@@ -35,20 +35,23 @@ const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const sysSummary = document.getElementById('sys-summary');
 
-// Restore last-used IP, or use the host we're served from (when served by the Cardputer itself)
+// When served from the Cardputer itself, always use that host's IP and auto-connect.
+// When opened standalone (file:// or localhost), restore the last-used IP.
 const savedIp = localStorage.getItem('cardputer-ip');
-const servedFromDevice = location.hostname && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
-if (savedIp) {
-    ipInput.value = savedIp;
-} else if (servedFromDevice) {
+const servedFromDevice = location.hostname !== '' &&
+    location.hostname !== 'localhost' &&
+    location.hostname !== '127.0.0.1';
+
+if (servedFromDevice) {
     ipInput.value = location.hostname;
+} else if (savedIp) {
+    ipInput.value = savedIp;
 }
 
-// Auto-connect when served directly from the Cardputer
 if (servedFromDevice && !api.connected) {
     statusDot.className = 'dot connecting';
     statusText.textContent = 'Connecting...';
-    api.connect(ipInput.value).catch(e => {
+    api.connect(location.hostname).catch(e => {
         statusText.textContent = e.message || 'Connection failed';
     });
 }

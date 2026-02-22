@@ -17,10 +17,10 @@
 #include <M5Cardputer.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#include <LittleFS.h>
 
 #include "config.h"
 #include "api_server.h"
+#include "api_webapp.h"
 #include "api_system.h"
 #include "api_display.h"
 #include "api_gps.h"
@@ -112,26 +112,7 @@ static void keyboardLoop() {
     }
 }
 
-// ── LittleFS + Web App ─────────────────────────────────────────────────────
-
-static bool appAvailable = false;
-
-static void setupAppServing() {
-    if (!LittleFS.begin(false)) {
-        Serial.println("[App] LittleFS not mounted — run prepare-data + upload data via Arduino IDE");
-        return;
-    }
-    if (!LittleFS.exists("/index.html")) {
-        Serial.println("[App] LittleFS mounted but no index.html — upload the data/ folder");
-        LittleFS.end();
-        return;
-    }
-    apiServer.http().serveStatic("/app", LittleFS, "/").setDefaultFile("index.html");
-    appAvailable = true;
-    Serial.println("[App] Web app available at /app/");
-}
-
-// ── Root Page ──────────────────────────────────────────────────────────────
+// ── Root Page (/info) ──────────────────────────────────────────────────────
 
 static void setupRootPage() {
     // GET /api/version — firmware version
@@ -145,16 +126,12 @@ static void setupRootPage() {
         req->send(200, "application/json", json);
     });
 
-    apiServer.http().on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
+    apiServer.http().on("/info", HTTP_GET, [](AsyncWebServerRequest* req) {
         String ip = WiFi.softAPIP().toString();
-        String appLink = appAvailable
-            ? "<div class=\"section\" style=\"background:#001a00;border:1px solid #0f0;border-radius:6px;padding:12px\">"
-              "<b>&#9654; <a href=\"/app/\">Open Web App</a></b> &mdash; full hardware control UI"
-              "</div>"
-            : "<div class=\"section\" style=\"background:#1a1000;border:1px solid #ff0;border-radius:6px;padding:12px\">"
-              "<b>Web App not loaded</b> &mdash; run <code>prepare-data.bat</code> then upload the <code>data/</code>"
-              " folder via Arduino IDE (Tools &rarr; ESP32 Sketch Data Upload)"
-              "</div>";
+        String appLink =
+            "<div class=\"section\" style=\"background:#001a00;border:1px solid #0f0;border-radius:6px;padding:12px\">"
+            "<b>&#9654; <a href=\"/\">Open Web App</a></b> &mdash; full hardware control UI"
+            "</div>";
         String html = "<!DOCTYPE html>"
             "<html><head><title>Cardputer ADV API</title>"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
@@ -229,8 +206,8 @@ void setup() {
     M5Cardputer.Speaker.setVolume(AUDIO_DEFAULT_VOLUME);
 
     // Register API modules
-    setupAppServing();
-    setupRootPage();
+    setupWebApp();       // Embedded web app served at /
+    setupRootPage();     // API info page at /info
     setupSystemApi();
     setupDisplayApi();
     setupGpioApi();
@@ -258,8 +235,8 @@ void setup() {
     apiServer.begin();
 
     Serial.println("[Cardputer ADV] All systems ready!");
-    Serial.printf("[Cardputer ADV] Connect to WiFi '%s' and browse to http://%s/\n",
-                  WIFI_AP_SSID, WiFi.softAPIP().toString().c_str());
+    Serial.printf("[Cardputer ADV] Connect to WiFi '%s' and browse to http://%s/\n  API info: http://%s/info\n",
+                  WIFI_AP_SSID, WiFi.softAPIP().toString().c_str(), WiFi.softAPIP().toString().c_str());
 
     // Show status screen
     displayShowStatus(WIFI_AP_SSID, WiFi.softAPIP().toString().c_str(),

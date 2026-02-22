@@ -116,24 +116,76 @@ void setupDisplayApi() {
 
 void displayShowStatus(const char* ssid, const char* ip, int clients) {
     auto& lcd = M5Cardputer.Display;
+    const int W = lcd.width();   // 240
     lcd.fillScreen(TFT_BLACK);
-    lcd.setTextColor(TFT_GREEN);
     lcd.setTextSize(1);
 
-    lcd.setCursor(0, 0);
+    // ── Header bar ───────────────────────────────────────────────────────────
+    lcd.fillRect(0, 0, W, 13, lcd.color565(0, 110, 0));
+    lcd.setTextColor(TFT_BLACK);
+    lcd.setCursor(3, 3);
     lcd.printf("CardputerADV v%s", FIRMWARE_VERSION);
-    lcd.println();
-    lcd.println();
-    lcd.printf("SSID: %s\n", ssid);
-    lcd.printf("IP:   %s\n", ip);
-    lcd.printf("Port: %d\n", HTTP_PORT);
-    lcd.println();
-    lcd.printf("WiFi clients: %d\n", clients);
-    lcd.printf("WS clients:   %d\n", apiServer.wsClientCount());
-    lcd.println();
-    lcd.printf("Heap: %d / %d\n", ESP.getFreeHeap(), ESP.getHeapSize());
-    lcd.printf("Up: %lus\n", millis() / 1000);
-    lcd.println();
+    lcd.drawLine(0, 13, W, 13, lcd.color565(0, 200, 80));
+
+    // ── Network ──────────────────────────────────────────────────────────────
+    lcd.setTextColor(TFT_YELLOW);
+    lcd.setCursor(2, 16);
+    lcd.printf("SSID: %s", ssid);
+
     lcd.setTextColor(TFT_CYAN);
-    lcd.printf("REST: %lu  WS: %lu\n", ApiServer::restRequestCount, ApiServer::wsMessageCount);
+    lcd.setCursor(2, 26);
+    lcd.printf("IP: %s  :%d", ip, HTTP_PORT);
+
+    lcd.setTextColor(TFT_WHITE);
+    lcd.setCursor(2, 36);
+    unsigned long upSec = millis() / 1000;
+    if (upSec < 60) {
+        lcd.printf("Up: %lus", upSec);
+    } else if (upSec < 3600) {
+        lcd.printf("Up: %lum %02lus", upSec / 60, upSec % 60);
+    } else {
+        lcd.printf("Up: %luh %02lum", upSec / 3600, (upSec % 3600) / 60);
+    }
+
+    lcd.drawLine(0, 46, W, 46, lcd.color565(40, 40, 40));
+
+    // ── Activity ─────────────────────────────────────────────────────────────
+    lcd.setTextColor(TFT_GREEN);
+    lcd.setCursor(2, 49);
+    lcd.printf("WiFi: %d  WS: %d clients", clients, apiServer.wsClientCount());
+
+    lcd.setCursor(2, 59);
+    lcd.printf("REST: %lu  WS msgs: %lu", ApiServer::restRequestCount, ApiServer::wsMessageCount);
+
+    lcd.drawLine(0, 69, W, 69, lcd.color565(40, 40, 40));
+
+    // ── Heap bar ─────────────────────────────────────────────────────────────
+    uint32_t heapFree  = ESP.getFreeHeap();
+    uint32_t heapTotal = ESP.getHeapSize();
+    lcd.setTextColor(TFT_WHITE);
+    lcd.setCursor(2, 72);
+    lcd.printf("Heap: %dK / %dK free", heapFree / 1024, heapTotal / 1024);
+
+    int barW   = W - 6;
+    int fillW  = (heapTotal > 0) ? (int)((float)heapFree / heapTotal * barW) : 0;
+    lcd.drawRect(3, 82, barW, 8, lcd.color565(60, 60, 60));
+    lcd.fillRect(4, 83, fillW - 2, 6, lcd.color565(0, 200, 100));
+
+    lcd.drawLine(0, 93, W, 93, lcd.color565(40, 40, 40));
+
+    // ── Access URL ───────────────────────────────────────────────────────────
+    lcd.setTextColor(TFT_CYAN);
+    lcd.setCursor(2, 96);
+    lcd.printf("http://%s/", ip);
+
+    lcd.setTextColor(lcd.color565(0, 200, 100));
+    lcd.setCursor(2, 106);
+    lcd.print("Open in browser to control");
+
+    lcd.drawLine(0, 117, W, 117, lcd.color565(40, 40, 40));
+
+    // ── Footer ───────────────────────────────────────────────────────────────
+    lcd.setTextColor(lcd.color565(90, 90, 90));
+    lcd.setCursor(2, 120);
+    lcd.printf("mDNS: %s.local", MDNS_HOSTNAME);
 }
