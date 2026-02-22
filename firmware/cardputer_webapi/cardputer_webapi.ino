@@ -17,6 +17,7 @@
 #include <M5Cardputer.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
+#include <LittleFS.h>
 
 #include "config.h"
 #include "api_server.h"
@@ -111,6 +112,25 @@ static void keyboardLoop() {
     }
 }
 
+// ── LittleFS + Web App ─────────────────────────────────────────────────────
+
+static bool appAvailable = false;
+
+static void setupAppServing() {
+    if (!LittleFS.begin(false)) {
+        Serial.println("[App] LittleFS not mounted — run prepare-data + upload data via Arduino IDE");
+        return;
+    }
+    if (!LittleFS.exists("/index.html")) {
+        Serial.println("[App] LittleFS mounted but no index.html — upload the data/ folder");
+        LittleFS.end();
+        return;
+    }
+    apiServer.http().serveStatic("/app", LittleFS, "/").setDefaultFile("index.html");
+    appAvailable = true;
+    Serial.println("[App] Web app available at /app/");
+}
+
 // ── Root Page ──────────────────────────────────────────────────────────────
 
 static void setupRootPage() {
@@ -127,6 +147,14 @@ static void setupRootPage() {
 
     apiServer.http().on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
         String ip = WiFi.softAPIP().toString();
+        String appLink = appAvailable
+            ? "<div class=\"section\" style=\"background:#001a00;border:1px solid #0f0;border-radius:6px;padding:12px\">"
+              "<b>&#9654; <a href=\"/app/\">Open Web App</a></b> &mdash; full hardware control UI"
+              "</div>"
+            : "<div class=\"section\" style=\"background:#1a1000;border:1px solid #ff0;border-radius:6px;padding:12px\">"
+              "<b>Web App not loaded</b> &mdash; run <code>prepare-data.bat</code> then upload the <code>data/</code>"
+              " folder via Arduino IDE (Tools &rarr; ESP32 Sketch Data Upload)"
+              "</div>";
         String html = "<!DOCTYPE html>"
             "<html><head><title>Cardputer ADV API</title>"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
@@ -140,6 +168,7 @@ static void setupRootPage() {
             ".get{color:#0f0} .post{color:#ff0}"
             "</style></head><body>"
             "<h1>Cardputer ADV API v" FIRMWARE_VERSION "</h1>"
+            + appLink +
             "<div class=\"section\"><h2>REST Endpoints</h2>"
             "<div class=\"endpoint\"><span class=\"method get\">GET</span> <a href=\"/api/version\">/api/version</a></div>"
             "<div class=\"endpoint\"><span class=\"method get\">GET</span> <a href=\"/api/system/info\">/api/system/info</a></div>"
@@ -200,6 +229,7 @@ void setup() {
     M5Cardputer.Speaker.setVolume(AUDIO_DEFAULT_VOLUME);
 
     // Register API modules
+    setupAppServing();
     setupRootPage();
     setupSystemApi();
     setupDisplayApi();

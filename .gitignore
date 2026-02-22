@@ -2,4 +2,5 @@
 .claude/
 node_modules/
 firmware/build/
+firmware/data/
 nul

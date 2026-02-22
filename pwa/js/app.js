@@ -8,6 +8,7 @@ import { initIr, activateIr, deactivateIr } from './tab-ir.js';
 import { initDisplay, activateDisplay, deactivateDisplay } from './tab-display.js';
 import { initGpio, activateGpio, deactivateGpio } from './tab-gpio.js';
 import { initAudio, activateAudio, deactivateAudio } from './tab-audio.js';
+import { initRecord, activateRecord, deactivateRecord } from './tab-record.js';
 
 const api = new CardputerAPI();
 
@@ -21,6 +22,7 @@ const tabs = {
     display:  { init: initDisplay,  activate: activateDisplay,  deactivate: deactivateDisplay },
     gpio:     { init: initGpio,     activate: activateGpio,     deactivate: deactivateGpio },
     audio:    { init: initAudio,    activate: activateAudio,    deactivate: deactivateAudio },
+    record:   { init: initRecord,   activate: activateRecord,   deactivate: deactivateRecord },
 };
 
 let activeTab = 'system';
@@ -33,9 +35,23 @@ const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const sysSummary = document.getElementById('sys-summary');
 
-// Restore last-used IP
+// Restore last-used IP, or use the host we're served from (when served by the Cardputer itself)
 const savedIp = localStorage.getItem('cardputer-ip');
-if (savedIp) ipInput.value = savedIp;
+const servedFromDevice = location.hostname && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1';
+if (savedIp) {
+    ipInput.value = savedIp;
+} else if (servedFromDevice) {
+    ipInput.value = location.hostname;
+}
+
+// Auto-connect when served directly from the Cardputer
+if (servedFromDevice && !api.connected) {
+    statusDot.className = 'dot connecting';
+    statusText.textContent = 'Connecting...';
+    api.connect(ipInput.value).catch(e => {
+        statusText.textContent = e.message || 'Connection failed';
+    });
+}
 
 api.onStatusChange = (connected) => {
     statusDot.className = 'dot ' + (connected ? 'connected' : 'disconnected');
