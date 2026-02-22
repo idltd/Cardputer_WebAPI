@@ -1,5 +1,5 @@
 @echo off
-:: Copies the PWA files into firmware/data/ ready for LittleFS upload.
+:: Copies the PWA files into firmware/cardputer_webapi/data/ ready for LittleFS upload.
 :: After running this, use Arduino IDE: Tools > ESP32 Sketch Data Upload
 :: (requires the arduino-esp32fs-plugin or LittleFS data uploader)
 

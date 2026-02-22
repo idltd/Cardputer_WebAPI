@@ -2,5 +2,5 @@
 .claude/
 node_modules/
 firmware/build/
-firmware/data/
+firmware/cardputer_webapi/data/
 nul
