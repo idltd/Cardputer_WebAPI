@@ -1,0 +1,5 @@
+.env
+.claude/
+node_modules/
+firmware/build/
+nul

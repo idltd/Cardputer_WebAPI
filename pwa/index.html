@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#00ff88">
+    <title>Cardputer Control</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="assets/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="connection-bar">
+        <div class="conn-row">
+            <input type="text" id="ip-input" value="192.168.4.1" placeholder="IP address" aria-label="Cardputer IP address">
+            <button id="connect-btn">Connect</button>
+            <span id="status-dot" class="dot disconnected" aria-hidden="true"></span>
+            <span id="status-text">Disconnected</span>
+        </div>
+        <div id="sys-summary" class="hidden"></div>
+    </div>
+
+    <nav id="tab-bar" role="tablist" aria-label="Hardware modules">
+        <button class="tab active" data-tab="system" role="tab" aria-selected="true" aria-controls="tab-system">System</button>
+        <button class="tab" data-tab="gps" role="tab" aria-selected="false" aria-controls="tab-gps">GPS</button>
+        <button class="tab" data-tab="lora" role="tab" aria-selected="false" aria-controls="tab-lora">LoRa</button>
+        <button class="tab" data-tab="imu" role="tab" aria-selected="false" aria-controls="tab-imu">IMU</button>
+        <button class="tab" data-tab="keyboard" role="tab" aria-selected="false" aria-controls="tab-keyboard">Keys</button>
+        <button class="tab" data-tab="ir" role="tab" aria-selected="false" aria-controls="tab-ir">IR</button>
+        <button class="tab" data-tab="display" role="tab" aria-selected="false" aria-controls="tab-display">Display</button>
+        <button class="tab" data-tab="gpio" role="tab" aria-selected="false" aria-controls="tab-gpio">GPIO</button>
+        <button class="tab" data-tab="audio" role="tab" aria-selected="false" aria-controls="tab-audio">Audio</button>
+    </nav>
+
+    <main id="tab-content">
+        <section id="tab-system" class="tab-panel active" role="tabpanel" aria-labelledby="tab-system"></section>
+        <section id="tab-gps" class="tab-panel" role="tabpanel" aria-labelledby="tab-gps"></section>
+        <section id="tab-lora" class="tab-panel" role="tabpanel" aria-labelledby="tab-lora"></section>
+        <section id="tab-imu" class="tab-panel" role="tabpanel" aria-labelledby="tab-imu"></section>
+        <section id="tab-keyboard" class="tab-panel" role="tabpanel" aria-labelledby="tab-keyboard"></section>
+        <section id="tab-ir" class="tab-panel" role="tabpanel" aria-labelledby="tab-ir"></section>
+        <section id="tab-display" class="tab-panel" role="tabpanel" aria-labelledby="tab-display"></section>
+        <section id="tab-gpio" class="tab-panel" role="tabpanel" aria-labelledby="tab-gpio"></section>
+        <section id="tab-audio" class="tab-panel" role="tabpanel" aria-labelledby="tab-audio"></section>
+    </main>
+
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js');
+    }
+    </script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
