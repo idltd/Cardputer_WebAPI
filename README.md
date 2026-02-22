@@ -32,13 +32,6 @@ Hardware/cardputer/
 | GPIO | REST | Digital read/write, pin mode configuration |
 | System | REST | Chip info, memory, uptime, WiFi clients |
 
-### Architecture
-
-`firmware/cardputer_webapi/` — Arduino sketch + C++ source, one file per hardware module:
-- `api_gps.*`, `api_lora.*`, `api_ir.*`, `api_imu.*`, `api_audio.*`, `api_display.*`, `api_gpio.*`, `api_serial.*`, `api_system.*`
-- `api_server.*` — ESPAsyncWebServer routing REST + WebSocket
-- `config.h` — WiFi AP credentials, server port, version
-
 ### Building
 
 Uses **arduino-cli** with the M5Stack board package:
@@ -50,7 +43,7 @@ arduino-cli compile ^
   firmware/cardputer_webapi
 ```
 
-Required libraries: M5Cardputer, ESPAsyncWebServer, AsyncTCP, ArduinoJson (v7), TinyGPSPlus, RadioLib, IRremote, LittleFS
+Required libraries: M5Cardputer, ESPAsyncWebServer, AsyncTCP, ArduinoJson (v7), TinyGPSPlus, RadioLib, IRremote
 
 **Partition scheme:** `no_ota` (2MB app limit) — compatible with the bmorcelli M5Launcher, which uses its own custom partition table on the device and installs only the app binary. The compiled binary fits comfortably at ~1.4MB (65% of the 2MB compile limit; 29% of the launcher's 4.9MB app partition).
 
@@ -60,6 +53,14 @@ Required libraries: M5Cardputer, ESPAsyncWebServer, AsyncTCP, ArduinoJson (v7), 
 
 - **Via M5Launcher (bmorcelli):** copy `cardputer_webapi_vX.Y.Z.bin` to the SD card and install from the launcher menu.
 - **Bare USB flash (first time / no launcher):** use `cardputer_webapi.ino.merged.bin` with esptool at offset 0x0.
+
+### Architecture
+
+`firmware/cardputer_webapi/` — Arduino sketch + C++ source, one file per hardware module:
+- `api_gps.*`, `api_lora.*`, `api_ir.*`, `api_imu.*`, `api_audio.*`, `api_display.*`, `api_gpio.*`, `api_serial.*`, `api_system.*`
+- `api_server.*` — ESPAsyncWebServer routing REST + WebSocket
+- `api_webapp.*` — all PWA files embedded as C string literals; serves the web app at `/`
+- `config.h` — WiFi AP credentials, server port, version
 
 ---
 
@@ -80,29 +81,27 @@ Vanilla JavaScript (ES6 modules), no build step, no dependencies. PWA with servi
 1. Flash the firmware to your M5Stack Cardputer
 2. Connect to `CardputerADV` WiFi AP (password: `cardputer`)
    > **Phone users:** disable mobile data first — mobile data takes priority over WiFi networks that have no internet, so requests to the Cardputer will be silently routed away and fail.
-3. Open `pwa/index.html` in a browser (or serve it from any HTTP server)
-   — or navigate to `http://192.168.4.1/app/` if LittleFS data has been uploaded (see below)
-4. Enter the Cardputer's IP (default: `192.168.4.1`) and click Connect
-   — if the app is served from the Cardputer itself, it auto-connects
+3. Navigate to `http://192.168.4.1/` — the web app is served directly from the firmware, no separate server needed
+4. The app auto-connects to the Cardputer when opened from the device
 
-### Serving from the Cardputer (LittleFS)
+Alternatively, open `pwa/index.html` from the local filesystem or any HTTP server and enter the Cardputer's IP (`192.168.4.1`) manually.
 
-The firmware can serve the web app directly from its flash filesystem, so any phone on the WiFi AP can open it in a browser without needing a separate server.
+The API endpoint listing (for development/debugging) is at `http://192.168.4.1/info`.
 
-**One-time setup:**
-1. Run `firmware/cardputer_webapi/prepare-data.bat` — copies `pwa/` into `firmware/cardputer_webapi/data/`
-2. In Arduino IDE: **Tools → ESP32 Sketch Data Upload** (requires the [arduino-esp32fs-plugin](https://github.com/lorol/arduino-esp32fs-plugin) or equivalent LittleFS uploader)
-3. Navigate to `http://192.168.4.1/app/` — the app loads and auto-connects
+### Microphone Recording
 
-`http://192.168.4.1/` shows the API listing with a prominent link to the app, or an instruction to upload the data if it hasn't been done. Re-run `prepare-data.bat` and re-upload whenever the PWA changes.
+The browser blocks microphone access over plain HTTP. To enable recording when connected to the Cardputer AP:
+
+- **Chrome/Android:** open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`, add `http://192.168.4.1`, relaunch Chrome
+- **Firefox:** open `about:config`, set `media.devices.insecure.enabled` to `true`
+
+The Record tab shows these instructions automatically when it detects an insecure context.
 
 ---
 
 ## Current State
 
-v1.1.0 — firmware and reference client working. All 9 hardware modules implemented. LittleFS app serving added; 10th tab (microphone recording) added to PWA.
-
-Installed and managed via the [bmorcelli M5Launcher](https://github.com/bmorcelli/M5Stick-Launcher).
+v1.2.0 — firmware and reference client working. All 9 hardware modules implemented across 10 PWA tabs. Web app embedded directly in firmware (no LittleFS upload step needed). Display shows a live dashboard. Managed via the [bmorcelli M5Launcher](https://github.com/bmorcelli/M5Stick-Launcher).
 
 ## Where It's Heading
 
