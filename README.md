@@ -64,6 +64,45 @@ Required libraries: M5Cardputer, ESPAsyncWebServer, AsyncTCP, ArduinoJson (v7), 
 
 ---
 
+## API Reference
+
+Connect to `http://192.168.4.1/info` for a live, clickable version of this listing.
+
+### REST Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/version` | Firmware name and version |
+| GET | `/api/system/info` | Chip, memory, flash, WiFi, uptime |
+| GET | `/api/gps` | Current GPS fix (position, speed, altitude, satellites) |
+| POST | `/api/gps/rate` | Set NMEA update rate |
+| GET | `/api/imu` | Current IMU reading (accel + gyro) |
+| POST | `/api/imu/rate` | Set IMU streaming rate |
+| GET | `/api/lora/config` | Current LoRa radio configuration |
+| POST | `/api/lora/config` | Set frequency, bandwidth, spreading factor, TX power |
+| POST | `/api/lora/send` | Transmit a LoRa packet |
+| POST | `/api/ir/send` | Send IR command (NEC / NEC Extended / Onkyo) |
+| GET | `/api/gpio/{pin}` | Read digital pin state |
+| POST | `/api/gpio/{pin}` | Write digital pin state |
+| POST | `/api/gpio/{pin}/mode` | Set pin mode (INPUT / OUTPUT / INPUT_PULLUP) |
+| POST | `/api/display/text` | Draw text at x/y with colour and size |
+| POST | `/api/display/clear` | Clear display to colour |
+| POST | `/api/display/fill` | Draw filled rectangle |
+| POST | `/api/audio/tone` | Play tone at frequency/duration |
+| POST | `/api/audio/volume` | Set speaker volume (0–10) |
+| POST | `/api/audio/stop` | Stop audio playback |
+
+### WebSocket Streams
+
+| Endpoint | Stream |
+|----------|--------|
+| `ws://192.168.4.1/ws/gps` | GPS position updates |
+| `ws://192.168.4.1/ws/imu` | IMU accelerometer + gyro |
+| `ws://192.168.4.1/ws/lora` | Received LoRa packets |
+| `ws://192.168.4.1/ws/keyboard` | Key press events with modifier state |
+
+---
+
 ## PWA Reference Client (`pwa/`)
 
 ### What It Does
