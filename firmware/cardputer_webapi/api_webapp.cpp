@@ -38,6 +38,7 @@ static const char FILE_INDEX[] = R"WEBEND(<!DOCTYPE html>
         <button class="tab" data-tab="display" role="tab" aria-selected="false" aria-controls="tab-display">Display</button>
         <button class="tab" data-tab="gpio" role="tab" aria-selected="false" aria-controls="tab-gpio">GPIO</button>
         <button class="tab" data-tab="audio" role="tab" aria-selected="false" aria-controls="tab-audio">Audio</button>
+        <button class="tab" data-tab="grove" role="tab" aria-selected="false" aria-controls="tab-grove">Grove</button>
         <button class="tab" data-tab="record" role="tab" aria-selected="false" aria-controls="tab-record">Record</button>
     </nav>
     <main id="tab-content">
@@ -50,6 +51,7 @@ static const char FILE_INDEX[] = R"WEBEND(<!DOCTYPE html>
         <section id="tab-display" class="tab-panel" role="tabpanel"></section>
         <section id="tab-gpio"   class="tab-panel" role="tabpanel"></section>
         <section id="tab-audio"  class="tab-panel" role="tabpanel"></section>
+        <section id="tab-grove"  class="tab-panel" role="tabpanel"></section>
         <section id="tab-record" class="tab-panel" role="tabpanel"></section>
     </main>
     <script type="module" src="js/app.js"></script>
@@ -511,6 +513,7 @@ import { initDisplay, activateDisplay, deactivateDisplay } from './tab-display.j
 import { initGpio, activateGpio, deactivateGpio } from './tab-gpio.js';
 import { initAudio, activateAudio, deactivateAudio } from './tab-audio.js';
 import { initRecord, activateRecord, deactivateRecord } from './tab-record.js';
+import { initGrove, activateGrove, deactivateGrove } from './tab-grove.js';
 
 const api = new CardputerAPI();
 
@@ -524,6 +527,7 @@ const tabs = {
     display:  { init: initDisplay,  activate: activateDisplay,  deactivate: deactivateDisplay },
     gpio:     { init: initGpio,     activate: activateGpio,     deactivate: deactivateGpio },
     audio:    { init: initAudio,    activate: activateAudio,    deactivate: deactivateAudio },
+    grove:    { init: initGrove,    activate: activateGrove,    deactivate: deactivateGrove },
     record:   { init: initRecord,   activate: activateRecord,   deactivate: deactivateRecord },
 };
 
@@ -1543,6 +1547,274 @@ function getSupportedMime() {
 }
 )WEBEND";
 
+// ── js/tab-grove.js ────────────────────────────────────────────────────────
+
+static const char FILE_TAB_GROVE_JS[] = R"WEBEND(let panel, currentApi;
+let sensors = [];
+let activeSensorId = '';
+let sse = null;
+const groveLog = [];
+
+export function initGrove(el) {
+    panel = el;
+    panel.innerHTML = `
+        <div class="card">
+            <h3>Grove Sensor</h3>
+            <div class="form-row">
+                <label>Type</label>
+                <select id="grove-type" style="flex:1">
+                    <option value="">Connect to load sensors</option>
+                </select>
+            </div>
+            <div id="grove-safety" style="display:none;border-radius:6px;padding:10px 12px;margin-top:8px;font-size:12px;line-height:1.5"></div>
+            <div id="grove-pins" style="margin-top:8px;font-size:12px;color:var(--text-dim)"></div>
+            <div class="form-row" style="margin-top:10px">
+                <button id="grove-cfg-btn">Configure</button>
+            </div>
+        </div>
+        <div class="card">
+            <h3>Reading</h3>
+            <div class="form-row">
+                <button id="grove-read-btn" class="secondary">Read Once</button>
+                <button id="grove-stream-btn" class="secondary">&#9654; Stream</button>
+            </div>
+            <div id="grove-value" style="font-size:16px;font-family:monospace;padding:10px 0;min-height:46px;color:var(--accent)">&#8212;</div>
+            <div id="grove-digital-row" class="form-row" style="display:none">
+                <label>Output</label>
+                <div class="toggle-group">
+                    <button id="grove-low-btn" class="active">LOW</button>
+                    <button id="grove-high-btn">HIGH</button>
+                </div>
+                <button id="grove-write-btn">Write</button>
+            </div>
+            <div id="grove-pwm-row" class="form-row" style="display:none">
+                <label>Duty</label>
+                <input type="range" id="grove-duty" min="0" max="255" value="128" style="flex:1">
+                <span id="grove-duty-val" style="font-family:monospace;min-width:28px">128</span>
+                <button id="grove-pwm-btn">Set</button>
+            </div>
+            <div id="grove-rotary-ctrl" style="display:none;margin-top:8px">
+                <button id="grove-rotary-reset" class="secondary">Reset Steps</button>
+            </div>
+        </div>
+        <div class="card">
+            <h3>Log</h3>
+            <button id="grove-log-clear" class="secondary" style="margin-bottom:8px;font-size:11px">Clear</button>
+            <div class="log" id="grove-log-el">
+                <div style="color:var(--text-dim);padding:8px">No readings yet</div>
+            </div>
+        </div>
+    `;
+
+    const sel = panel.querySelector('#grove-type');
+    sel.addEventListener('change', () => updateSafetyInfo(sel.value));
+
+    let digitalWriteVal = 0;
+    panel.querySelector('#grove-low-btn').onclick = () => {
+        digitalWriteVal = 0;
+        panel.querySelector('#grove-low-btn').classList.add('active');
+        panel.querySelector('#grove-high-btn').classList.remove('active');
+    };
+    panel.querySelector('#grove-high-btn').onclick = () => {
+        digitalWriteVal = 1;
+        panel.querySelector('#grove-high-btn').classList.add('active');
+        panel.querySelector('#grove-low-btn').classList.remove('active');
+    };
+
+    const dutySlider = panel.querySelector('#grove-duty');
+    const dutyValEl  = panel.querySelector('#grove-duty-val');
+    dutySlider.addEventListener('input', () => { dutyValEl.textContent = dutySlider.value; });
+
+    panel.querySelector('#grove-cfg-btn').onclick = () => {
+        if (!currentApi) return;
+        const id = sel.value;
+        if (!id) return;
+        stopStream();
+        currentApi.post('/api/grove/configure', { sensor: id }).then(r => {
+            activeSensorId = r.sensor;
+            showOutputControls(r.sensor);
+            addLog('Configured: ' + r.name + ' (D=GPIO' + r.pin_d + (r.uses_d2 ? ', D2=GPIO' + r.pin_d2 : '') + ')');
+        }).catch(e => addLog('Error: ' + e.message));
+    };
+
+    panel.querySelector('#grove-read-btn').onclick = () => {
+        if (!currentApi) return;
+        currentApi.get('/api/grove/read').then(r => {
+            renderReading(r);
+            addLog(readingToString(r));
+        }).catch(e => addLog('Error: ' + e.message));
+    };
+
+    panel.querySelector('#grove-stream-btn').onclick = () => {
+        if (sse) stopStream();
+        else startStream();
+    };
+
+    panel.querySelector('#grove-write-btn').onclick = () => {
+        if (!currentApi) return;
+        currentApi.post('/api/grove/write', { value: digitalWriteVal })
+            .then(() => addLog('Wrote: ' + (digitalWriteVal ? 'HIGH' : 'LOW')))
+            .catch(e => addLog('Error: ' + e.message));
+    };
+
+    panel.querySelector('#grove-pwm-btn').onclick = () => {
+        if (!currentApi) return;
+        const duty = parseInt(dutySlider.value);
+        currentApi.post('/api/grove/write', { duty })
+            .then(() => addLog('PWM duty: ' + duty))
+            .catch(e => addLog('Error: ' + e.message));
+    };
+
+    panel.querySelector('#grove-rotary-reset').onclick = () => {
+        if (!currentApi) return;
+        currentApi.post('/api/grove/rotary/reset', {})
+            .then(() => {
+                addLog('Rotary steps reset');
+                renderReading({ sensor: 'rotary', steps: 0, ts: Date.now() });
+            })
+            .catch(e => addLog('Error: ' + e.message));
+    };
+
+    panel.querySelector('#grove-log-clear').onclick = () => {
+        groveLog.length = 0;
+        renderLog();
+    };
+}
+
+export function activateGrove(api) {
+    currentApi = api;
+    loadSensors();
+    api.get('/api/grove/config').then(r => {
+        if (r.sensor) {
+            activeSensorId = r.sensor;
+            const sel = panel.querySelector('#grove-type');
+            sel.value = r.sensor;
+            updateSafetyInfo(r.sensor);
+            showOutputControls(r.sensor);
+        }
+    }).catch(() => {});
+}
+
+export function deactivateGrove() {
+    stopStream();
+    currentApi = null;
+}
+
+function loadSensors() {
+    if (!currentApi) return;
+    currentApi.get('/api/grove/sensors').then(data => {
+        sensors = data.sensors || [];
+        const sel = panel.querySelector('#grove-type');
+        sel.innerHTML = '<option value="">Select sensor type…</option>' +
+            sensors.map(s =>
+                '<option value="' + s.id + '">' + s.name + ' (' + s.vcc + (s.gpio_safe ? '' : ' ⚠') + ')</option>'
+            ).join('');
+        if (activeSensorId) {
+            sel.value = activeSensorId;
+            updateSafetyInfo(activeSensorId);
+        }
+    }).catch(() => {});
+}
+
+function updateSafetyInfo(id) {
+    const el     = panel.querySelector('#grove-safety');
+    const pinsEl = panel.querySelector('#grove-pins');
+    if (!id) { el.style.display = 'none'; pinsEl.textContent = ''; return; }
+    const s = sensors.find(x => x.id === id);
+    if (!s) return;
+
+    if (currentApi) {
+        currentApi.get('/api/grove/config').then(r => {
+            pinsEl.textContent = 'D = GPIO' + r.pin_d + ' (yellow)' +
+                (s.uses_d2 ? '  |  D2 = GPIO' + r.pin_d2 + ' (white)' : '');
+        }).catch(() => {
+            pinsEl.textContent = 'D: ' + s.d_role + (s.uses_d2 ? '  |  D2: ' + s.d2_role : '');
+        });
+    }
+
+    if (s.gpio_safe) {
+        el.style.cssText = 'display:block;background:#0d2818;border:1px solid var(--accent);border-radius:6px;padding:10px 12px;margin-top:8px;font-size:12px;line-height:1.5';
+        el.innerHTML = '<strong style="color:var(--accent)">✓ GPIO Safe — ' + s.vcc + '</strong><br>' + s.voltage_note;
+    } else {
+        el.style.cssText = 'display:block;background:#2a0d0d;border:1px solid var(--red);border-radius:6px;padding:10px 12px;margin-top:8px;font-size:12px;line-height:1.5';
+        el.innerHTML = '<strong style="color:var(--red)">⚠ Caution — ' + s.vcc + '</strong><br>' + s.voltage_note;
+    }
+}
+
+function showOutputControls(id) {
+    panel.querySelector('#grove-digital-row').style.display = id === 'digital_out' ? 'flex' : 'none';
+    panel.querySelector('#grove-pwm-row').style.display     = id === 'pwm_out'     ? 'flex' : 'none';
+    panel.querySelector('#grove-rotary-ctrl').style.display = id === 'rotary'      ? 'block' : 'none';
+}
+
+function startStream() {
+    if (!currentApi || sse) return;
+    const btn = panel.querySelector('#grove-stream-btn');
+    btn.textContent = '■ Stop';
+    btn.classList.remove('secondary');
+    sse = new EventSource('http://' + currentApi.ip + '/api/grove/stream');
+    sse.addEventListener('reading', e => {
+        const r = JSON.parse(e.data);
+        renderReading(r);
+        addLog(readingToString(r));
+    });
+    sse.onerror = () => { stopStream(); addLog('Stream closed'); };
+    addLog('Stream started');
+}
+
+function stopStream() {
+    if (sse) { sse.close(); sse = null; }
+    const btn = panel.querySelector('#grove-stream-btn');
+    if (btn) { btn.textContent = '▶ Stream'; btn.classList.add('secondary'); }
+}
+
+function renderReading(r) {
+    const el = panel.querySelector('#grove-value');
+    if (r.error) { el.style.color = 'var(--red)'; el.textContent = r.error; return; }
+    el.style.color = 'var(--accent)';
+    const parts = [];
+    if (r.label        !== undefined) parts.push(r.label);
+    else if (r.value   !== undefined) parts.push((r.value ? 'HIGH' : 'LOW') + ' (' + r.value + ')');
+    if (r.raw          !== undefined) parts.push('raw: ' + r.raw + '  ' + r.voltage + 'V');
+    if (r.temperature  !== undefined) parts.push(r.temperature + '°C');
+    if (r.humidity     !== undefined) parts.push(r.humidity + '%RH');
+    if (r.distance_cm  !== undefined) parts.push(r.distance_cm + ' cm');
+    if (r.steps        !== undefined) parts.push('Steps: ' + r.steps);
+    if (r.note         !== undefined) parts.push(r.note);
+    el.textContent = parts.join('  |  ') || '—';
+}
+
+function readingToString(r) {
+    if (r.error) return 'Error: ' + r.error;
+    const parts = [];
+    if (r.label        !== undefined) parts.push(r.label);
+    else if (r.value   !== undefined) parts.push('val=' + r.value);
+    if (r.raw          !== undefined) parts.push('raw=' + r.raw + ' ' + r.voltage + 'V');
+    if (r.temperature  !== undefined) parts.push('temp=' + r.temperature + '°C');
+    if (r.humidity     !== undefined) parts.push('hum=' + r.humidity + '%');
+    if (r.distance_cm  !== undefined) parts.push('dist=' + r.distance_cm + 'cm');
+    if (r.steps        !== undefined) parts.push('steps=' + r.steps);
+    return parts.join(' ') || JSON.stringify(r);
+}
+
+function addLog(msg) {
+    groveLog.unshift({ time: new Date().toLocaleTimeString(), msg });
+    if (groveLog.length > 100) groveLog.pop();
+    renderLog();
+}
+
+function renderLog() {
+    const el = panel.querySelector('#grove-log-el');
+    if (groveLog.length === 0) {
+        el.innerHTML = '<div style="color:var(--text-dim);padding:8px">No readings yet</div>';
+        return;
+    }
+    el.innerHTML = groveLog.map(e =>
+        '<div class="log-entry"><span class="log-time">' + e.time + '</span>' + e.msg + '</div>'
+    ).join('');
+}
+)WEBEND";
+
 // ── Route registration ─────────────────────────────────────────────────────
 
 void setupWebApp() {
@@ -1590,6 +1862,9 @@ void setupWebApp() {
     });
     apiServer.http().on("/js/tab-record.js", HTTP_GET, [](AsyncWebServerRequest* req) {
         req->send(200, "application/javascript", FILE_TAB_RECORD_JS);
+    });
+    apiServer.http().on("/js/tab-grove.js", HTTP_GET, [](AsyncWebServerRequest* req) {
+        req->send(200, "application/javascript", FILE_TAB_GROVE_JS);
     });
 
     Serial.println("[App] Web app routes registered — browse to http://192.168.4.1/");

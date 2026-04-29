@@ -47,6 +47,10 @@
 // --- Audio (ES8311 via I2C + I2S, handled by M5Unified) ---
 #define AUDIO_DEFAULT_VOLUME  128  // 0–255
 
+// --- Grove Port (Port A on the Cardputer body) ---
+#define GROVE_D_PIN    1    // Primary data pin  (yellow Grove wire, GPIO1)
+#define GROVE_D2_PIN   2    // Secondary data pin (white Grove wire,  GPIO2)
+
 // --- Keyboard ---
 // I2C on GPIO8 (SDA), GPIO9 (SCL), interrupt on GPIO11
 // Handled internally by M5Cardputer library
@@ -78,7 +82,7 @@ static const int RESERVED_PINS[] = {
 #define RESERVED_PIN_COUNT (sizeof(RESERVED_PINS) / sizeof(RESERVED_PINS[0]))
 
 // --- Firmware Version ---
-#define FIRMWARE_VERSION   "1.2.0"
+#define FIRMWARE_VERSION   "1.3.0"
 
 // --- mDNS ---
 #define MDNS_HOSTNAME      "cardputer"

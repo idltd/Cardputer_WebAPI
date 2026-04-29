@@ -12,6 +12,9 @@
 //   - TinyGPSPlus
 //   - RadioLib
 //   - IRremoteESP8266
+//   - DHTesp             (Grove: DHT11)
+//   - OneWire            (Grove: DS18B20)
+//   - DallasTemperature  (Grove: DS18B20)
 // ============================================================================
 
 #include <M5Cardputer.h>
@@ -30,6 +33,7 @@
 #include "api_imu.h"
 #include "api_audio.h"
 #include "api_serial.h"
+#include "api_grove.h"
 
 // Keyboard WebSocket
 static AsyncWebSocket* wsKeyboard = nullptr;
@@ -231,6 +235,9 @@ void setup() {
     // Serial command interface (USB)
     setupSerialApi();
 
+    // Grove sensor port (GPIO1/GPIO2)
+    setupGroveApi();
+
     // Start HTTP server (must be called after all routes are registered)
     apiServer.begin();
 
@@ -265,6 +272,9 @@ void loop() {
 
     // IMU WebSocket streaming
     imuLoop();
+
+    // Grove SSE streaming
+    groveLoop();
 
     // Periodic status display update
     if (millis() - lastStatusUpdate >= DISPLAY_STATUS_UPDATE_MS) {

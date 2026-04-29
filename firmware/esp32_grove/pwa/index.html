@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grove Sensor Explorer</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --text: #e6edf3; --dim: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --yellow: #d29922; --red: #f85149;
+    --orange: #e3792a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 16px; font-weight: 600; flex: 1; }
+  #status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
+  #status-dot.ok { background: var(--green); }
+  #status-dot.err { background: var(--red); }
+
+  main { max-width: 640px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
+
+  /* Board picker */
+  select { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 7px 10px; font-size: 14px; width: 100%; cursor: pointer; }
+  .pin-info { margin-top: 8px; font-size: 12px; color: var(--dim); }
+  .pin-info span { color: var(--accent); font-family: monospace; }
+
+  /* Sensor grid */
+  #sensor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .sensor-btn {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px; cursor: pointer; text-align: left; transition: border-color .15s;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .sensor-btn:hover { border-color: var(--accent); }
+  .sensor-btn.active { border-color: var(--accent); background: #1c2a3e; }
+  .sensor-btn .sname { font-size: 13px; font-weight: 500; }
+  .sensor-btn .scat  { font-size: 11px; color: var(--dim); }
+  .sensor-btn .svcc  { font-size: 11px; font-family: monospace; }
+  .sensor-btn .safe-ok   { color: var(--green); }
+  .sensor-btn .safe-warn { color: var(--red); }
+
+  /* Voltage warning banner */
+  #voltage-banner { display: none; border-radius: 6px; padding: 12px 14px; font-size: 13px; line-height: 1.5; }
+  #voltage-banner.safe    { background: #0d2818; border: 1px solid var(--green); }
+  #voltage-banner.caution { background: #2a0d0d; border: 1px solid var(--red); }
+  #voltage-banner .banner-title { font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .badge-safe    { background: var(--green); color: #000; border-radius: 4px; padding: 1px 6px; font-size: 11px; }
+  .badge-caution { background: var(--red);   color: #fff; border-radius: 4px; padding: 1px 6px; font-size: 11px; }
+
+  /* Pin diagram */
+  #pin-diagram { font-family: monospace; font-size: 12px; color: var(--dim); line-height: 1.8; display: none; }
+  #pin-diagram .pin-d  { color: var(--accent); }
+  #pin-diagram .pin-d2 { color: var(--orange); }
+  #pin-diagram .pin-vcc { color: var(--red); }
+  #pin-diagram .pin-gnd { color: var(--dim); }
+
+  /* Controls */
+  #controls { display: none; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button { background: var(--accent); color: #000; border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  button:hover { opacity: .85; }
+  button.secondary { background: var(--border); color: var(--text); }
+  button.danger    { background: var(--red); color: #fff; }
+  #interval-label { font-size: 12px; color: var(--dim); }
+  input[type=range] { width: 120px; accent-color: var(--accent); }
+  input[type=number] { background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 6px 8px; font-size: 13px; width: 80px; }
+
+  /* Output controls */
+  #output-controls { display: none; margin-top: 8px; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #output-controls label { font-size: 12px; color: var(--dim); }
+
+  /* Readings */
+  #reading-display { display: none; }
+  .reading-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .reading-row:last-child { border-bottom: none; }
+  .reading-label { color: var(--dim); font-size: 13px; }
+  .reading-value { font-size: 28px; font-weight: 700; font-family: monospace; color: var(--green); }
+  .reading-unit  { font-size: 13px; color: var(--dim); margin-left: 4px; }
+  #reading-ts { font-size: 11px; color: var(--dim); margin-top: 4px; }
+  #error-msg { color: var(--red); font-size: 13px; margin-top: 8px; display: none; }
+
+  /* Graph */
+  #graph-card { display: none; }
+  canvas { width: 100%; height: 120px; display: block; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div id="status-dot"></div>
+  <h1>Grove Sensor Explorer</h1>
+  <span id="fw-ver" style="font-size:11px;color:var(--dim)"></span>
+</header>
+
+<main>
+
+  <!-- Board / Pin Selection -->
+  <div class="card">
+    <h2>Board</h2>
+    <select id="board-select"><option>Loading…</option></select>
+    <div class="pin-info" id="pin-info">D: — &nbsp; D2: —</div>
+  </div>
+
+  <!-- Sensor Picker -->
+  <div class="card">
+    <h2>Sensor</h2>
+    <div id="sensor-grid"></div>
+  </div>
+
+  <!-- Voltage / Safety Banner -->
+  <div id="voltage-banner">
+    <div class="banner-title"><span id="banner-badge"></span><span id="banner-title-text"></span></div>
+    <div id="banner-body"></div>
+  </div>
+
+  <!-- Pin Wiring Diagram -->
+  <div class="card" id="wiring-card" style="display:none">
+    <h2>Wiring (Grove → breadboard)</h2>
+    <div id="pin-diagram"></div>
+  </div>
+
+  <!-- Stream Controls -->
+  <div class="card" id="controls-card" style="display:none">
+    <h2>Controls</h2>
+    <div id="controls">
+      <button id="btn-start">Start Stream</button>
+      <button id="btn-stop" class="secondary" style="display:none">Stop</button>
+      <button id="btn-once" class="secondary">Read Once</button>
+      <label id="interval-label">
+        Interval: <span id="interval-val">500</span>ms
+        <input type="range" id="interval-slider" min="100" max="5000" step="100" value="500">
+      </label>
+    </div>
+    <!-- Output-specific controls -->
+    <div id="output-controls" style="display:flex">
+      <label>Value: <input type="number" id="out-value" value="0" min="0" max="255"></label>
+      <button id="btn-write">Write</button>
+      <button id="btn-rotary-reset" class="secondary" style="display:none">Reset Count</button>
+    </div>
+  </div>
+
+  <!-- Live Reading -->
+  <div class="card" id="reading-card" style="display:none">
+    <h2>Reading</h2>
+    <div id="reading-display"></div>
+    <div id="reading-ts"></div>
+    <div id="error-msg"></div>
+  </div>
+
+  <!-- Graph -->
+  <div class="card" id="graph-card">
+    <h2>History</h2>
+    <canvas id="graph" height="120"></canvas>
+  </div>
+
+</main>
+
+<script>
+const HOST = location.hostname === 'localhost' ? '192.168.4.1' : location.hostname;
+const BASE = `http://${HOST}`;
+
+let sensors = [];
+let activeSensor = null;
+let eventSource = null;
+let graphValues = [];
+const GRAPH_MAX = 80;
+
+// ── Init ──────────────────────────────────────────────────────────────────
+
+async function init() {
+  await loadBoards();
+  await loadSensors();
+  await loadConfig();
+  setStatus(true);
+  document.getElementById('fw-ver').textContent = 'v1.0.0';
+}
+
+function setStatus(ok) {
+  const dot = document.getElementById('status-dot');
+  dot.className = ok ? 'ok' : 'err';
+}
+
+// ── Board ─────────────────────────────────────────────────────────────────
+
+async function loadBoards() {
+  const r = await fetch(`${BASE}/api/grove/boards`).catch(() => null);
+  if (!r) return;
+  const data = await r.json();
+  const sel = document.getElementById('board-select');
+  sel.innerHTML = '';
+  for (const b of data.boards) {
+    const o = document.createElement('option');
+    o.value = b.id; o.textContent = b.name;
+    o.dataset.d = b.d; o.dataset.d2 = b.d2;
+    sel.appendChild(o);
+  }
+  sel.addEventListener('change', onBoardChange);
+  updatePinInfo(sel.selectedOptions[0]);
+}
+
+async function onBoardChange() {
+  const sel = document.getElementById('board-select');
+  const opt = sel.selectedOptions[0];
+  await fetch(`${BASE}/api/grove/board`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({board: opt.value})
+  });
+  updatePinInfo(opt);
+  if (activeSensor) showWiring(activeSensor, opt.dataset.d, opt.dataset.d2);
+}
+
+function updatePinInfo(opt) {
+  document.getElementById('pin-info').innerHTML =
+    `D: <span>GPIO${opt.dataset.d}</span> &nbsp; D2: <span>GPIO${opt.dataset.d2}</span>`;
+}
+
+// ── Sensors ───────────────────────────────────────────────────────────────
+
+async function loadSensors() {
+  const r = await fetch(`${BASE}/api/grove/sensors`).catch(() => null);
+  if (!r) return;
+  const data = await r.json();
+  sensors = data.sensors;
+  renderSensorGrid();
+}
+
+function renderSensorGrid() {
+  const grid = document.getElementById('sensor-grid');
+  grid.innerHTML = '';
+  for (const s of sensors) {
+    const btn = document.createElement('button');
+    btn.className = 'sensor-btn';
+    btn.innerHTML = `
+      <span class="sname">${s.name}</span>
+      <span class="scat">${s.category}</span>
+      <span class="svcc ${s.gpio_safe ? 'safe-ok' : 'safe-warn'}">
+        ${s.gpio_safe ? '✓' : '⚠'} ${s.vcc}
+      </span>`;
+    btn.addEventListener('click', () => selectSensor(s));
+    btn.dataset.id = s.id;
+    grid.appendChild(btn);
+  }
+}
+
+async function selectSensor(s) {
+  stopStream();
+  activeSensor = s;
+
+  // Highlight
+  document.querySelectorAll('.sensor-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.id === s.id));
+
+  showVoltageBanner(s);
+
+  const sel = document.getElementById('board-select');
+  const opt = sel.selectedOptions[0];
+  showWiring(s, opt.dataset.d, opt.dataset.d2);
+
+  // Configure on device
+  const r = await fetch(`${BASE}/api/grove/configure`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({sensor: s.id, stream_interval_ms: getInterval()})
+  }).catch(() => null);
+  if (!r || !r.ok) { setStatus(false); return; }
+
+  showControls(s);
+  clearReading();
+  graphValues = [];
+  drawGraph();
+}
+
+// ── Voltage Banner ────────────────────────────────────────────────────────
+
+function showVoltageBanner(s) {
+  const banner = document.getElementById('voltage-banner');
+  const badge  = document.getElementById('banner-badge');
+  const title  = document.getElementById('banner-title-text');
+  const body   = document.getElementById('banner-body');
+
+  banner.style.display = 'block';
+  if (s.gpio_safe) {
+    banner.className = 'safe';
+    badge.className  = 'badge-safe';
+    badge.textContent = '3.3V SAFE';
+    title.textContent = s.name;
+  } else {
+    banner.className = 'caution';
+    badge.className  = 'badge-caution';
+    badge.textContent = '⚠ VOLTAGE WARNING';
+    title.textContent = s.name;
+  }
+  body.textContent = s.voltage_note;
+}
+
+// ── Pin Wiring Diagram ────────────────────────────────────────────────────
+
+function showWiring(s, d, d2) {
+  const card = document.getElementById('wiring-card');
+  const diag = document.getElementById('pin-diagram');
+  card.style.display = 'block';
+  diag.style.display = 'block';
+
+  const vccColor = s.gpio_safe ? '#3fb950' : '#f85149';
+  const vccNote  = s.gpio_safe ? '3.3V' : '5V (⚠ external supply — NOT ESP32 3.3V pin if sensor draws >100mA)';
+
+  let lines = `
+<span class="pin-vcc">● VCC  → ${vccNote}</span>
+<span class="pin-gnd">● GND  → GND</span>
+<span class="pin-d" >● ${s.d_role.padEnd(5)} → GPIO${d}  (D)</span>`;
+  if (s.uses_d2) {
+    lines += `\n<span class="pin-d2">● ${(s.d2_role||'D2').padEnd(5)} → GPIO${d2} (D2)</span>`;
+  }
+  diag.innerHTML = lines;
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────
+
+function showControls(s) {
+  document.getElementById('controls-card').style.display = 'block';
+  document.getElementById('reading-card').style.display  = 'block';
+  document.getElementById('graph-card').style.display    = 'block';
+
+  const isOutput = s.id === 'digital_out' || s.id === 'pwm_out';
+  const isRotary = s.id === 'rotary';
+
+  document.getElementById('controls').style.display        = isOutput ? 'none' : 'flex';
+  document.getElementById('output-controls').style.display = isOutput ? 'flex' : 'none';
+  document.getElementById('btn-rotary-reset').style.display = isRotary ? 'inline-block' : 'none';
+
+  if (s.id === 'pwm_out') {
+    document.getElementById('out-value').max = 255;
+    document.getElementById('out-value').placeholder = 'duty 0–255';
+  } else if (s.id === 'digital_out') {
+    document.getElementById('out-value').max = 1;
+    document.getElementById('out-value').placeholder = '0 or 1';
+  }
+}
+
+function getInterval() {
+  return parseInt(document.getElementById('interval-slider').value, 10);
+}
+
+document.getElementById('interval-slider').addEventListener('input', function() {
+  document.getElementById('interval-val').textContent = this.value;
+});
+
+document.getElementById('btn-start').addEventListener('click', startStream);
+document.getElementById('btn-stop').addEventListener('click', stopStream);
+document.getElementById('btn-once').addEventListener('click', readOnce);
+document.getElementById('btn-write').addEventListener('click', writeOutput);
+document.getElementById('btn-rotary-reset').addEventListener('click', resetRotary);
+
+// ── Stream ────────────────────────────────────────────────────────────────
+
+function startStream() {
+  if (eventSource) stopStream();
+  eventSource = new EventSource(`${BASE}/api/grove/stream`);
+  eventSource.addEventListener('reading', e => displayReading(JSON.parse(e.data)));
+  eventSource.addEventListener('error', () => setStatus(false));
+  document.getElementById('btn-start').style.display = 'none';
+  document.getElementById('btn-stop').style.display  = 'inline-block';
+}
+
+function stopStream() {
+  if (eventSource) { eventSource.close(); eventSource = null; }
+  document.getElementById('btn-start').style.display = 'inline-block';
+  document.getElementById('btn-stop').style.display  = 'none';
+}
+
+async function readOnce() {
+  const r = await fetch(`${BASE}/api/grove/read`).catch(() => null);
+  if (!r) { setStatus(false); return; }
+  displayReading(await r.json());
+}
+
+// ── Output ────────────────────────────────────────────────────────────────
+
+async function writeOutput() {
+  if (!activeSensor) return;
+  const val = parseInt(document.getElementById('out-value').value, 10);
+  const body = activeSensor.id === 'pwm_out' ? {duty: val} : {value: val};
+  await fetch(`${BASE}/api/grove/write`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+}
+
+async function resetRotary() {
+  await fetch(`${BASE}/api/grove/rotary/reset`, {method:'POST'});
+}
+
+// ── Display Reading ───────────────────────────────────────────────────────
+
+function displayReading(data) {
+  setStatus(true);
+  const display = document.getElementById('reading-display');
+  const errEl   = document.getElementById('error-msg');
+  display.style.display = 'block';
+
+  if (data.error) {
+    errEl.textContent = '⚠ ' + data.error;
+    errEl.style.display = 'block';
+    display.innerHTML = '';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  const rows = [];
+  let graphVal = null;
+
+  if ('value' in data)       { rows.push(['Signal', data.value, data.label || '']); graphVal = data.value; }
+  if ('raw' in data)         { rows.push(['Raw (ADC)', data.raw, '']); graphVal = data.raw; }
+  if ('voltage' in data && 'raw' in data) rows.push(['Voltage', data.voltage, 'V']);
+  if ('temperature' in data) { rows.push(['Temperature', data.temperature, '°C']); graphVal = parseFloat(data.temperature); }
+  if ('humidity' in data)    rows.push(['Humidity', data.humidity, '%RH']);
+  if ('distance_cm' in data) { rows.push(['Distance', data.distance_cm, 'cm']); graphVal = parseFloat(data.distance_cm); }
+  if ('steps' in data)       { rows.push(['Steps', data.steps, '']); graphVal = data.steps; }
+  if ('duty' in data)        rows.push(['PWM Duty', data.duty, '/ 255']);
+
+  display.innerHTML = rows.map(([lbl, val, unit]) =>
+    `<div class="reading-row">
+       <span class="reading-label">${lbl}</span>
+       <span><span class="reading-value">${val}</span><span class="reading-unit">${unit}</span></span>
+     </div>`
+  ).join('');
+
+  document.getElementById('reading-ts').textContent =
+    `Updated ${new Date().toLocaleTimeString()}`;
+
+  if (graphVal !== null && isFinite(graphVal)) {
+    graphValues.push(graphVal);
+    if (graphValues.length > GRAPH_MAX) graphValues.shift();
+    drawGraph();
+  }
+}
+
+function clearReading() {
+  document.getElementById('reading-display').innerHTML = '';
+  document.getElementById('error-msg').style.display = 'none';
+}
+
+// ── Graph ─────────────────────────────────────────────────────────────────
+
+function drawGraph() {
+  const canvas = document.getElementById('graph');
+  const ctx = canvas.getContext('2d');
+  canvas.width  = canvas.offsetWidth  * devicePixelRatio;
+  canvas.height = canvas.offsetHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  const pad = 8;
+
+  ctx.clearRect(0, 0, W, H);
+  if (graphValues.length < 2) return;
+
+  const min = Math.min(...graphValues);
+  const max = Math.max(...graphValues);
+  const range = max - min || 1;
+
+  // Grid
+  ctx.strokeStyle = '#30363d'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad + (H - pad*2) * (1 - i/4);
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
+  }
+
+  // Line
+  ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  graphValues.forEach((v, i) => {
+    const x = pad + (W - pad*2) * i / (GRAPH_MAX - 1);
+    const y = pad + (H - pad*2) * (1 - (v - min) / range);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#8b949e'; ctx.font = `${10 * devicePixelRatio / devicePixelRatio}px monospace`;
+  ctx.fillText(max.toFixed(1), pad + 2, pad + 10);
+  ctx.fillText(min.toFixed(1), pad + 2, H - pad - 2);
+}
+
+window.addEventListener('resize', drawGraph);
+
+// ── Load existing config ──────────────────────────────────────────────────
+
+async function loadConfig() {
+  const r = await fetch(`${BASE}/api/grove/config`).catch(() => null);
+  if (!r) return;
+  const cfg = await r.json();
+  const sel = document.getElementById('board-select');
+  for (const opt of sel.options) {
+    if (opt.value === cfg.board) { sel.value = opt.value; updatePinInfo(opt); break; }
+  }
+  if (cfg.sensor) {
+    const s = sensors.find(x => x.id === cfg.sensor);
+    if (s) {
+      document.querySelectorAll('.sensor-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.id === s.id));
+      activeSensor = s;
+      showVoltageBanner(s);
+      const opt = sel.selectedOptions[0];
+      showWiring(s, opt.dataset.d, opt.dataset.d2);
+      showControls(s);
+    }
+  }
+}
+
+init().catch(console.error);
+</script>
+</body>
+</html>

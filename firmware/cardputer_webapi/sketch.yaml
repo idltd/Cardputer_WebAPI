@@ -1,0 +1,24 @@
+# arduino-cli sketch profile — Cardputer ADV
+#
+# With this file present, arduino-cli can compile without --fqbn:
+#   arduino-cli compile --profile default firmware/cardputer_webapi
+#
+# First-time setup: run firmware/install-libraries.bat to install all dependencies.
+
+profiles:
+  default:
+    fqbn: m5stack:esp32:m5stack_cardputer:PartitionScheme=no_ota
+    platforms:
+      - platform: m5stack:esp32
+        platform_index_url: https://m5stack.oss-cn-shenzhen.aliyuncs.com/resource/arduino/package_m5stack_index.json
+    libraries:
+      - M5Cardputer
+      - ArduinoJson
+      - TinyGPSPlus
+      - RadioLib
+      - IRremote
+      - DHTesp
+      - OneWire
+      - DallasTemperature
+      # ESPAsyncWebServer and AsyncTCP are installed via install-libraries.bat
+      # (git-url install required — not version-pinnable in sketch.yaml)
