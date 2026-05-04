@@ -9,6 +9,7 @@ import { initDisplay, activateDisplay, deactivateDisplay } from './tab-display.j
 import { initGpio, activateGpio, deactivateGpio } from './tab-gpio.js';
 import { initAudio, activateAudio, deactivateAudio } from './tab-audio.js';
 import { initRecord, activateRecord, deactivateRecord } from './tab-record.js';
+import { initGrove, activateGrove, deactivateGrove } from './tab-grove.js';
 
 const api = new CardputerAPI();
 
@@ -22,6 +23,7 @@ const tabs = {
     display:  { init: initDisplay,  activate: activateDisplay,  deactivate: deactivateDisplay },
     gpio:     { init: initGpio,     activate: activateGpio,     deactivate: deactivateGpio },
     audio:    { init: initAudio,    activate: activateAudio,    deactivate: deactivateAudio },
+    grove:    { init: initGrove,    activate: activateGrove,    deactivate: deactivateGrove },
     record:   { init: initRecord,   activate: activateRecord,   deactivate: deactivateRecord },
 };
 
